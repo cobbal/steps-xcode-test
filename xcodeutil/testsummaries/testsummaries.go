@@ -104,7 +104,7 @@ func parseTestSummaries(testSummariesContent plistutil.PlistData) ([]TestResult,
 				{
 					activitySummariesData, found := test.GetMapStringInterfaceArray("ActivitySummaries")
 					if !found {
-						log.Infof("no activity summaries found for test: %s", test)
+						log.Debugf("no activity summaries found for test: %s", test)
 					}
 					activitySummaries, err = parseActivites(activitySummariesData)
 					if err != nil {

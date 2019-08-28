@@ -21,6 +21,7 @@ type XcodeBuildTestParamsModel struct {
 	BuildParams XcodeBuildParamsModel
 
 	TestOutputDir        string
+	ProfileOutput        string
 	CleanBuild           bool
 	BuildBeforeTest      bool
 	GenerateCodeCoverage bool

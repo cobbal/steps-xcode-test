@@ -245,6 +245,7 @@ workflows:
         - simulator_device: $SIMULATOR_DEVICE
         - simulator_platform: $SIMULATOR_PLATFORM
         - should_build_before_test: "yes"
+        - trace_template: "Time Profiler"
         - xcodebuild_test_options: -verbose
         - export_uitest_artifacts: "true"
         - verbose: "yes"

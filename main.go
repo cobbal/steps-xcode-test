@@ -85,6 +85,8 @@ type Configs struct {
 	ShouldBuildBeforeTest bool `env:"should_build_before_test,opt[yes,no]"`
 	ShouldRetryTestOnFail bool `env:"should_retry_test_on_fail,opt[yes,no]"`
 
+	TraceTemplate string `env:"trace_template"`
+
 	GenerateCodeCoverageFiles bool `env:"generate_code_coverage_files,opt[yes,no]"`
 	ExportUITestArtifacts     bool `env:"export_uitest_artifacts,opt[true,false]"`
 
@@ -234,7 +236,7 @@ func runBuild(buildParams models.XcodeBuildParamsModel, outputTool string) (stri
 	return runXcodeBuildCmd(false, xcodebuildArgs...)
 }
 
-func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcprettyOptions string, isAutomaticRetryOnReason, isRetryOnFail bool) (string, int, error) {
+func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcprettyOptions string, traceTemplate string, isAutomaticRetryOnReason, isRetryOnFail bool) (string, int, error) {
 	handleTestError := func(fullOutputStr string, exitCode int, testError error) (string, int, error) {
 		//
 		// Automatic retry
@@ -243,7 +245,7 @@ func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcpre
 				log.Warnf("Automatic retry reason found in log: %s", retryReasonPattern)
 				if isAutomaticRetryOnReason {
 					log.Printf("isAutomaticRetryOnReason=true - retrying...")
-					return runTest(buildTestParams, outputTool, xcprettyOptions, false, false)
+					return runTest(buildTestParams, outputTool, xcprettyOptions, traceTemplate, false, false)
 				}
 				log.Errorf("isAutomaticRetryOnReason=false, no more retry, stopping the test!")
 				return fullOutputStr, exitCode, testError
@@ -255,7 +257,7 @@ func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcpre
 		if isRetryOnFail {
 			log.Warnf("Test run failed")
 			log.Printf("isRetryOnFail=true - retrying...")
-			return runTest(buildTestParams, outputTool, xcprettyOptions, false, false)
+			return runTest(buildTestParams, outputTool, xcprettyOptions, traceTemplate, false, false)
 		}
 
 		return fullOutputStr, exitCode, testError
@@ -342,6 +344,19 @@ func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcpre
 		xcprettyArgs = append(xcprettyArgs, options...)
 	}
 
+	profilerCmd := (*exec.Cmd)(nil)
+	if traceTemplate != "" {
+		dest := buildTestParams.BuildParams.DeviceDestination
+
+		profilerCmd = exec.Command("instruments", "-w", dest, "-t", traceTemplate)
+		log.Infof("Starting profiler...")
+		log.Infof("%s", profilerCmd.Args)
+		err := profilerCmd.Start()
+		if err != nil {
+			return "", 1, fmt.Errorf("failed to start profiler, err: %s", err)
+		}
+	}
+
 	log.Infof("Running the tests...")
 
 	var rawOutput string
@@ -353,9 +368,27 @@ func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcpre
 		rawOutput, exit, err = runXcodeBuildCmd(true, xcodebuildArgs...)
 	}
 
+	if profilerCmd != nil {
+		log.Infof("Killing profiler...")
+		if profilerErr := profilerCmd.Process.Signal(os.Interrupt); profilerErr != nil {
+			return "", 1, fmt.Errorf("failed to kill profiler: %s", profilerErr)
+		}
+
+		if profilerErr := profilerCmd.Wait(); profilerErr != nil {
+			if exitError, ok := profilerErr.(*exec.ExitError); ok {
+				_, ok := exitError.Sys().(syscall.WaitStatus)
+				if !ok {
+					return "", 1, errors.New("failed to cast exit status")
+				}
+			}
+		}
+	}
+
 	if err != nil {
 		return handleTestError(rawOutput, exit, err)
 	}
+
+
 	return rawOutput, exit, nil
 }
 
@@ -549,6 +582,15 @@ func main() {
 		testOutputDir = path.Join(tempDir, "Test.xcresult")
 	}
 
+	var profileOutput string
+	{
+		tempDir, err := ioutil.TempDir("", "ProfileOutput")
+		if err != nil {
+			fail("Could not create profile output temporary directory.")
+		}
+		profileOutput = path.Join(tempDir, "profile.trace")
+	}
+
 	buildParams := models.XcodeBuildParamsModel{
 		Action:                    action,
 		ProjectPath:               configs.ProjectPath,
@@ -561,6 +603,7 @@ func main() {
 	buildTestParams := models.XcodeBuildTestParamsModel{
 		BuildParams:          buildParams,
 		TestOutputDir:        testOutputDir,
+		ProfileOutput:        profileOutput,
 		BuildBeforeTest:      configs.ShouldBuildBeforeTest,
 		AdditionalOptions:    configs.TestOptions,
 		GenerateCodeCoverage: configs.GenerateCodeCoverageFiles,
@@ -609,7 +652,7 @@ func main() {
 
 	//
 	// Run test
-	rawXcodebuildOutput, exitCode, testErr := runTest(buildTestParams, outputTool, configs.XcprettyTestOptions, true, configs.ShouldRetryTestOnFail)
+	rawXcodebuildOutput, exitCode, testErr := runTest(buildTestParams, outputTool, configs.XcprettyTestOptions, configs.TraceTemplate, true, configs.ShouldRetryTestOnFail)
 
 	logPth, err := saveRawOutputToLogFile(rawXcodebuildOutput, (testErr == nil))
 

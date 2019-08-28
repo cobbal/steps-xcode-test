@@ -243,6 +243,12 @@ inputs:
         - "yes"
         - "no"
       is_required: true
+  - trace_template: ""
+    opts:
+      category: Debug
+      title: "profiling trace template"
+      description: |-
+        The template that instruments will use to profile the tests, or empty to disable profiling.
   - xcpretty_test_options: --color --report html --output "${BITRISE_DEPLOY_DIR}/xcode-test-results-${BITRISE_SCHEME}.html"
     opts:
       category: Debug
