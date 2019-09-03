@@ -121,7 +121,7 @@ inputs:
         Could make the build faster by adding `COMPILER_INDEX_STORE_ENABLE=NO` flag to the `xcodebuild` command which will disable the indexing during the build.
 
         Indexing is needed for
-        
+
         * Autocomplete
         * Ability to quickly jump to definition
         * Get class and method help by alt clicking.
@@ -177,9 +177,11 @@ inputs:
       title: Output tool
       description: |-
         If output_tool is set to xcpretty, the xcodebuild output will be prettified by xcpretty.
+        If output_tool is set to xcbeautify, the xcodebuild output will be prettified by xcbeautify.
         If output_tool is set to xcodebuild, the raw xcodebuild output will be printed.
       value_options:
       - xcpretty
+      - xcbeautify
       - xcodebuild
       is_required: true
   - xcodebuild_test_options: ""
@@ -210,7 +212,7 @@ inputs:
       category: Debug
       title: "Run xcodebuild test only"
       description: |-
-        If `single_build` is set to false, the step runs `xcodebuild OPTIONS build OPTIONS` before the test 
+        If `single_build` is set to false, the step runs `xcodebuild OPTIONS build OPTIONS` before the test
         to generate the project derived data. After that comes `xcodebuild OPTIONS build test OPTIONS`. This command's log is presented in the step's log.
 
         If `single_build` is set to true, then the step calls only `xcodebuild OPTIONS build test OPTIONS`.

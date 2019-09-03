@@ -78,7 +78,7 @@ type Configs struct {
 	SimulatorOsVersion string `env:"simulator_os_version,required"`
 
 	// Test Run Configs
-	OutputTool    string `env:"output_tool,opt[xcpretty,xcodebuild]"`
+	OutputTool    string `env:"output_tool,opt[xcpretty,xcbeautify,xcodebuild]"`
 	IsCleanBuild  bool   `env:"is_clean_build,opt[yes,no]"`
 	IsSingleBuild bool   `env:"single_build,opt[true,false]"`
 
@@ -144,10 +144,10 @@ func runXcodeBuildCmd(useStdOut bool, args ...string) (string, int, error) {
 	return outBuffer.String(), 0, nil
 }
 
-func runPrettyXcodeBuildCmd(useStdOut bool, xcprettyArgs []string, xcodebuildArgs []string) (string, int, error) {
+func runPrettyXcodeBuildCmd(useStdOut bool, prettyTool string, xcprettyArgs []string, xcodebuildArgs []string) (string, int, error) {
 	//
 	buildCmd := cmd.CreateXcodebuildCmd(xcodebuildArgs...)
-	prettyCmd := cmd.CreateXcprettyCmd(xcprettyArgs...)
+	prettyCmd := exec.Command(prettyTool, xcprettyArgs...)
 	//
 	var buildOutBuffer bytes.Buffer
 	//
@@ -228,10 +228,11 @@ func runBuild(buildParams models.XcodeBuildParamsModel, outputTool string) (stri
 
 	log.Infof("Building the project...")
 
-	if outputTool == "xcpretty" {
-		return runPrettyXcodeBuildCmd(false, []string{}, xcodebuildArgs)
+	if outputTool == "xcodebuild" {
+		return runXcodeBuildCmd(false, xcodebuildArgs...)
+	} else {
+		return runPrettyXcodeBuildCmd(false, outputTool, []string{}, xcodebuildArgs)
 	}
-	return runXcodeBuildCmd(false, xcodebuildArgs...)
 }
 
 func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcprettyOptions string, isAutomaticRetryOnReason, isRetryOnFail bool) (string, int, error) {
@@ -347,10 +348,10 @@ func runTest(buildTestParams models.XcodeBuildTestParamsModel, outputTool, xcpre
 	var rawOutput string
 	var err error
 	var exit int
-	if outputTool == "xcpretty" {
-		rawOutput, exit, err = runPrettyXcodeBuildCmd(true, xcprettyArgs, xcodebuildArgs)
-	} else {
+	if outputTool == "xcodebuild" {
 		rawOutput, exit, err = runXcodeBuildCmd(true, xcodebuildArgs...)
+	} else {
+		rawOutput, exit, err = runPrettyXcodeBuildCmd(true, outputTool, xcprettyArgs, xcodebuildArgs)
 	}
 
 	if err != nil {
